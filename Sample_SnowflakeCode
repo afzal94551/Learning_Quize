@@ -1,0 +1,277 @@
+import streamlit as st
+import json
+
+# Quiz Questions - Easily customizable
+QUIZ_DATA = {
+    "Snowflake Fundamentals": [
+        {
+            "question": "What is Snowflake's primary architecture advantage?",
+            "options": [
+                "Separate compute and storage",
+                "Combined compute and storage",
+                "Only cloud-based database",
+                "Only on-premise solution"
+            ],
+            "correct": 0
+        },
+        {
+            "question": "Which of the following is NOT a Snowflake edition?",
+            "options": [
+                "Standard Edition",
+                "Business Edition",
+                "Enterprise Edition",
+                "Premium Edition"
+            ],
+            "correct": 3
+        },
+        {
+            "question": "What is a Virtual Warehouse in Snowflake?",
+            "options": [
+                "A physical server",
+                "A logical cluster of compute resources",
+                "A data storage solution",
+                "A backup mechanism"
+            ],
+            "correct": 1
+        },
+        {
+            "question": "How does Snowflake store data?",
+            "options": [
+                "As uncompressed tables",
+                "Using micro-partitions",
+                "As raw files",
+                "In memory only"
+            ],
+            "correct": 1
+        },
+        {
+            "question": "What is the minimum retention period for Snowflake's Time Travel?",
+            "options": [
+                "24 hours",
+                "7 days",
+                "30 days",
+                "90 days"
+            ],
+            "correct": 0
+        },
+        {
+            "question": "Which Snowflake feature allows querying historical data?",
+            "options": [
+                "Fail-Safe",
+                "Time Travel",
+                "Zero Copy Cloning",
+                "Replication"
+            ],
+            "correct": 1
+        },
+        {
+            "question": "What does a Snowflake role control?",
+            "options": [
+                "Compute resources only",
+                "Storage allocation",
+                "Privileges and permissions",
+                "Query execution speed"
+            ],
+            "correct": 2
+        },
+        {
+            "question": "Which data format does Snowflake natively support for semi-structured data?",
+            "options": [
+                "Only CSV",
+                "JSON, Parquet, Avro",
+                "Only XML",
+                "Only binary files"
+            ],
+            "correct": 1
+        },
+        {
+            "question": "What is Zero Copy Cloning in Snowflake?",
+            "options": [
+                "Copying data to backup",
+                "Instant clone using metadata, no data duplication",
+                "Slow clone process",
+                "Manual backup process"
+            ],
+            "correct": 1
+        },
+        {
+            "question": "How is Snowflake pricing calculated?",
+            "options": [
+                "Per CPU cores",
+                "Per GB of storage + compute credit usage",
+                "Flat monthly fee",
+                "Per query executed"
+            ],
+            "correct": 1
+        }
+    ]
+}
+
+def initialize_session_state():
+    """Initialize session state variables"""
+    if 'current_question' not in st.session_state:
+        st.session_state.current_question = 0
+    if 'score' not in st.session_state:
+        st.session_state.score = 0
+    if 'quiz_started' not in st.session_state:
+        st.session_state.quiz_started = False
+    if 'quiz_completed' not in st.session_state:
+        st.session_state.quiz_completed = False
+    if 'selected_topic' not in st.session_state:
+        st.session_state.selected_topic = None
+    if 'answers' not in st.session_state:
+        st.session_state.answers = {}
+
+def display_home():
+    """Display home page with topic selection"""
+    st.title("📚 SnowPro Quiz App")
+    st.write("Test your Snowflake knowledge!")
+    
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        st.write("### Select a Quiz Topic:")
+        for topic in QUIZ_DATA.keys():
+            num_questions = len(QUIZ_DATA[topic])
+            if st.button(f"🔷 {topic} ({num_questions} questions)", 
+                        key=f"topic_{topic}", 
+                        use_container_width=True):
+                st.session_state.selected_topic = topic
+                st.session_state.quiz_started = True
+                st.session_state.current_question = 0
+                st.session_state.score = 0
+                st.session_state.answers = {}
+                st.rerun()
+
+def display_quiz():
+    """Display quiz questions"""
+    if not st.session_state.selected_topic:
+        display_home()
+        return
+    
+    questions = QUIZ_DATA[st.session_state.selected_topic]
+    current_q_index = st.session_state.current_question
+    
+    if current_q_index >= len(questions):
+        st.session_state.quiz_completed = True
+        display_results()
+        return
+    
+    current_q = questions[current_q_index]
+    
+    # Header
+    st.title(f"📖 {st.session_state.selected_topic}")
+    progress = (current_q_index / len(questions)) * 100
+    st.progress(progress / 100)
+    st.write(f"Question {current_q_index + 1} of {len(questions)}")
+    
+    # Question
+    st.subheader(current_q['question'])
+    
+    # Options
+    answer = st.radio(
+        "Select your answer:",
+        options=current_q['options'],
+        key=f"question_{current_q_index}",
+        index=None
+    )
+    
+    # Navigation buttons
+    col1, col2, col3 = st.columns([1, 1, 1])
+    
+    with col1:
+        if current_q_index > 0:
+            if st.button("⬅️ Previous"):
+                st.session_state.current_question -= 1
+                st.rerun()
+    
+    with col2:
+        if st.button("Submit Answer"):
+            if answer is None:
+                st.warning("⚠️ Please select an answer!")
+            else:
+                # Store answer
+                st.session_state.answers[current_q_index] = {
+                    "question": current_q['question'],
+                    "selected": answer,
+                    "correct": current_q['options'][current_q['correct']],
+                    "is_correct": answer == current_q['options'][current_q['correct']]
+                }
+                
+                # Update score
+                if st.session_state.answers[current_q_index]['is_correct']:
+                    st.session_state.score += 1
+                
+                # Move to next question
+                st.session_state.current_question += 1
+                st.rerun()
+    
+    with col3:
+        if st.button("⏹️ End Quiz"):
+            st.session_state.quiz_completed = True
+            st.rerun()
+
+def display_results():
+    """Display quiz results"""
+    questions = QUIZ_DATA[st.session_state.selected_topic]
+    total_questions = len(questions)
+    score = st.session_state.score
+    percentage = (score / total_questions) * 100
+    
+    st.title("✅ Quiz Completed!")
+    st.write(f"### Your Score: {score}/{total_questions} ({percentage:.1f}%)")
+    
+    # Score visualization
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Correct", score)
+    with col2:
+        st.metric("Incorrect", total_questions - score)
+    with col3:
+        st.metric("Percentage", f"{percentage:.1f}%")
+    
+    # Performance message
+    if percentage == 100:
+        st.balloons()
+        st.success("🎉 Perfect Score! You're a Snowflake Expert!")
+    elif percentage >= 80:
+        st.success("🌟 Great Job! You have a strong understanding!")
+    elif percentage >= 60:
+        st.info("👍 Good effort! Keep learning to improve!")
+    else:
+        st.warning("📚 Keep studying! Review the concepts and try again!")
+    
+    # Detailed review
+    st.write("### Answer Review:")
+    for idx, answer_data in st.session_state.answers.items():
+        with st.expander(f"Question {idx + 1}: {answer_data['question']}"):
+            if answer_data['is_correct']:
+                st.success(f"✅ Correct! You selected: {answer_data['selected']}")
+            else:
+                st.error(f"❌ Incorrect. You selected: {answer_data['selected']}")
+                st.info(f"Correct answer: {answer_data['correct']}")
+    
+    # Restart button
+    if st.button("🔄 Restart Quiz", use_container_width=True):
+        st.session_state.quiz_started = False
+        st.session_state.quiz_completed = False
+        st.session_state.current_question = 0
+        st.session_state.score = 0
+        st.session_state.answers = {}
+        st.session_state.selected_topic = None
+        st.rerun()
+
+# Main app
+def main():
+    st.set_page_config(page_title="SnowPro Quiz", page_icon="❄️", layout="wide")
+    
+    initialize_session_state()
+    
+    if not st.session_state.quiz_started and not st.session_state.quiz_completed:
+        display_home()
+    elif st.session_state.quiz_completed:
+        display_results()
+    else:
+        display_quiz()
+
+if __name__ == "__main__":
+    main()
